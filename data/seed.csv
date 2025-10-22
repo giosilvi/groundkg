@@ -1,0 +1,10 @@
+doc_id,url,license,lang
+wiki_knowledge_graph,https://en.wikipedia.org/wiki/Knowledge_graph,CC-BY-SA-4.0,en
+wiki_nlp,https://en.wikipedia.org/wiki/Natural_language_processing,CC-BY-SA-4.0,en
+wiki_ai,https://en.wikipedia.org/wiki/Artificial_intelligence,CC-BY-SA-4.0,en
+wiki_machine_learning,https://en.wikipedia.org/wiki/Machine_learning,CC-BY-SA-4.0,en
+wiki_deep_learning,https://en.wikipedia.org/wiki/Deep_learning,CC-BY-SA-4.0,en
+wiki_neural_network,https://en.wikipedia.org/wiki/Neural_network,CC-BY-SA-4.0,en
+wiki_ontology,https://en.wikipedia.org/wiki/Ontology_(information_science),CC-BY-SA-4.0,en
+wiki_semantic_web,https://en.wikipedia.org/wiki/Semantic_Web,CC-BY-SA-4.0,en
+

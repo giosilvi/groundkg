@@ -6,3 +6,13 @@ __pycache__/
 dist/
 build/
 *.egg-info/
+out/
+data/corpus/
+data/raw/
+/tmp/
+models/*.onnx
+models/*.json
+!models/thresholds.json
+!models/classes.json
+training/re_train.jsonl
+training/re_dev.jsonl

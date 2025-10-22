@@ -1,0 +1,53 @@
+predicates:
+  - id: type
+    description: "X is an instance of category Y"
+    template: "{X} is a {Y}"
+
+  - id: covered_by
+    description: "Regime/Law Y applies to X (in scope / regulated)"
+    template: "{X} is covered by {Y}"
+
+  - id: headquartered_in
+    description: "X has headquarters in Y"
+    template: "{X} is headquartered in {Y}"
+
+  - id: operates_in
+    description: "X operates in country/region Y"
+    template: "{X} operates in {Y}"
+
+  - id: part_of
+    description: "X is a component/part of Y"
+    template: "{X} is part of {Y}"
+
+  - id: subsidiary_of
+    description: "X is a subsidiary of Y"
+    template: "{X} is a subsidiary of {Y}"
+
+  - id: parent_of
+    description: "X is the parent company/organization of Y"
+    template: "{X} is the parent of {Y}"
+
+  - id: member_of
+    description: "X is a member of organization/standard body Y"
+    template: "{X} is a member of {Y}"
+
+  - id: uses
+    description: "X uses technology/tool/concept Y"
+    template: "{X} uses {Y}"
+
+  - id: provides
+    description: "X provides service/product/capability Y"
+    template: "{X} provides {Y}"
+
+  - id: requires
+    description: "Regulation/standard X requires obligation Y"
+    template: "{X} requires {Y}"
+
+  - id: prohibits
+    description: "Regulation/policy X prohibits practice Y"
+    template: "{X} prohibits {Y}"
+
+  - id: none
+    description: "No relation"
+    template: ""
+
