@@ -1,0 +1,18 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "required": ["doc_id","sent_idx","quote","subject","subject_span","relation_surface","object","object_span","lang"],
+    "additionalProperties": false,
+    "properties": {
+      "doc_id": { "type": "string" },
+      "sent_idx": { "type": "integer", "minimum": 0 },
+      "quote": { "type": "string", "minLength": 1, "maxLength": 600 },
+      "subject": { "type": "string", "minLength": 1 },
+      "subject_span": { "type": "array", "items": { "type": "integer", "minimum": 0 }, "minItems": 2, "maxItems": 2 },
+      "relation_surface": { "type": "string", "minLength": 1 },
+      "object": { "type": "string", "minLength": 1 },
+      "object_span": { "type": "array", "items": { "type": "integer", "minimum": 0 }, "minItems": 2, "maxItems": 2 },
+      "lang": { "type": "string" },
+      "qualifiers": { "type": "object", "additionalProperties": true }
+    }
+  }

@@ -1,0 +1,4 @@
+numbers: [ex:count, ex:ratio]
+money: [ex:eur]
+time: [xsd:date, xsd:dateTime]
+other: [ex:kw, ex:watt, ex:sec]

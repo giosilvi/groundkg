@@ -1,0 +1,13 @@
+@prefix sh:   <http://www.w3.org/ns/shacl#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+@prefix ex:   <https://example.invalid/vocab#> .
+
+ex:AttributeShape a sh:NodeShape ;
+  sh:targetClass ex:Attribute ;
+  sh:property [ sh:path ex:name ; sh:datatype xsd:string ; sh:minCount 1 ] ;
+  sh:or (
+    [ sh:property [ sh:path ex:valueNumber ; sh:datatype xsd:decimal ; sh:minCount 1 ] ]
+    [ sh:property [ sh:path ex:valueString ; sh:datatype xsd:string ; sh:minCount 1 ] ]
+    [ sh:property [ sh:path ex:valueBoolean ; sh:datatype xsd:boolean ; sh:minCount 1 ] ]
+  ) ;
+  sh:property [ sh:path ex:evidence ; sh:minCount 1 ] .
