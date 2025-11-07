@@ -100,6 +100,12 @@ def index():
     return render_template('index.html')
 
 
+@app.route('/pipeline')
+def pipeline_docs():
+    """Pipeline documentation page"""
+    return render_template('pipeline.html')
+
+
 @app.route('/api/run/<target>', methods=['POST'])
 def run_command(target):
     """Run a make target"""
@@ -195,6 +201,30 @@ def get_file(file_key):
 def quality():
     """Get quality report"""
     return jsonify(get_quality_report())
+
+
+@app.route('/api/source/<path:file_path>')
+def get_source_file(file_path):
+    """Get source file contents"""
+    path = PROJECT_ROOT / file_path
+    if not path.exists():
+        return jsonify({'error': 'File does not exist'}), 404
+    
+    # Security check: ensure path is within project root
+    try:
+        path.resolve().relative_to(PROJECT_ROOT.resolve())
+    except ValueError:
+        return jsonify({'error': 'Invalid file path'}), 403
+    
+    try:
+        with open(path, 'r', encoding='utf-8') as f:
+            content = f.read()
+        return jsonify({
+            'path': file_path,
+            'content': content
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 
 @app.route('/api/pipeline/status')

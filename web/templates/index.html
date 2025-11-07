@@ -201,10 +201,51 @@
         .badge-success { background: #d4edda; color: #155724; }
         .badge-warning { background: #fff3cd; color: #856404; }
         .badge-danger { background: #f8d7da; color: #721c24; }
+        
+        .btn {
+            position: relative;
+        }
+        
+        .btn[title]:hover::after {
+            content: attr(title);
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #2c3e50;
+            color: white;
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            white-space: nowrap;
+            z-index: 1000;
+            margin-bottom: 5px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+            pointer-events: none;
+            max-width: 300px;
+            white-space: normal;
+            text-align: left;
+        }
+        
+        .btn[title]:hover::before {
+            content: '';
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            border: 5px solid transparent;
+            border-top-color: #2c3e50;
+            margin-bottom: -5px;
+            z-index: 1000;
+            pointer-events: none;
+        }
     </style>
 </head>
 <body>
     <div class="container">
+        <div style="background: white; padding: 10px 15px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+            <a href="/pipeline" style="color: #3498db; text-decoration: none; font-weight: 500;">📚 View Pipeline Documentation →</a>
+        </div>
         <h1>GroundKG Pipeline Dashboard</h1>
         <p class="subtitle">Run pipeline commands and monitor outputs</p>
         
@@ -218,38 +259,38 @@
                 
                 <div class="command-group">
                     <h3>Bootstrap & Training</h3>
-                    <button class="btn" onclick="runCommand('bootstrap')">Bootstrap Seeds</button>
-                    <button class="btn" onclick="runCommand('coldstart')">Cold Start (Train)</button>
-                    <button class="btn btn-success" onclick="runCommand('pipeline')">Full Pipeline</button>
+                    <button class="btn" onclick="runCommand('bootstrap')" title="Auto-generate initial training seeds from corpus using regex patterns. Runs: ner → cand → bootstrap_seed. Creates training/seed.jsonl with high-precision examples. (Note: LLM-based bootstrap is planned but not yet implemented)">Bootstrap Seeds</button>
+                    <button class="btn" onclick="runCommand('coldstart')" title="🔤 Uses Sentence Transformer: Train the first model from seed data. Uses sentence-transformers (all-MiniLM-L6-v2) to generate embeddings, then trains LogisticRegression classifier. Splits seed.jsonl 80/20 into train/dev. Creates models/promoter_v1.onnx, thresholds.json, classes.json.">Cold Start (Train)</button>
+                    <button class="btn btn-success" onclick="runCommand('pipeline')" title="Complete end-to-end pipeline: bootstrap → train → score → autoselect → rescore → infer → edges → ttl → report. Runs the full recommended workflow. (Uses sentence transformer in training and scoring steps)">Full Pipeline</button>
                 </div>
                 
                 <div class="command-group">
                     <h3>Core Pipeline</h3>
-                    <button class="btn" onclick="runCommand('ner')">NER</button>
-                    <button class="btn" onclick="runCommand('cand')">Candidates</button>
-                    <button class="btn" onclick="runCommand('score')">Score</button>
-                    <button class="btn" onclick="runCommand('infer')">Infer</button>
-                    <button class="btn" onclick="runCommand('edges')">Edges</button>
-                    <button class="btn" onclick="runCommand('ttl')">Export TTL</button>
+                    <button class="btn" onclick="runCommand('ner')" title="Extract named entities from corpus files. Uses spaCy NER + EntityRuler patterns. Outputs: out/pack.ner.jsonl (sentences with entities).">NER</button>
+                    <button class="btn" onclick="runCommand('cand')" title="Generate candidate entity pairs from NER output. Filters by distance and entity types. Outputs: out/pack.candidates.jsonl (subject-object pairs).">Candidates</button>
+                    <button class="btn" onclick="runCommand('score')" title="🔤 Uses Sentence Transformer: Score candidate pairs using sentence-transformers (all-MiniLM-L6-v2) to generate embeddings, then ONNX model for classification. Requires models/promoter_v1.onnx. Outputs: out/pack.scored.jsonl (predictions with probabilities).">Score</button>
+                    <button class="btn" onclick="runCommand('infer')" title="Promote high-confidence predictions to edges. Applies per-class thresholds from models/thresholds.json. Outputs: out/edges.jsonl.">Infer</button>
+                    <button class="btn" onclick="runCommand('edges')" title="Deduplicate edges by normalizing subject/predicate/object. Outputs: out/edges.dedup.jsonl.">Edges</button>
+                    <button class="btn" onclick="runCommand('ttl')" title="Export edges to RDF/Turtle format. Outputs: out/graph.ttl (knowledge graph in Turtle format).">Export TTL</button>
                 </div>
                 
                 <div class="command-group">
                     <h3>Self-Training</h3>
-                    <button class="btn btn-warning" onclick="runCommand('autoselect')">Auto-Select & Retrain</button>
-                    <button class="btn" onclick="runCommand('rescore')">Rescore</button>
+                    <button class="btn btn-warning" onclick="runCommand('autoselect')" title="🔤 Uses Sentence Transformer: Select high-confidence predictions for retraining. Mines confident examples from scored predictions, then retrains using sentence-transformers. Improves model quality iteratively.">Auto-Select & Retrain</button>
+                    <button class="btn" onclick="runCommand('rescore')" title="🔤 Uses Sentence Transformer: Rescore candidates after model retraining. Uses sentence-transformers to generate embeddings, then ONNX model. Forces re-scoring with the updated model. Use after autoselect to get new predictions.">Rescore</button>
                 </div>
                 
                 <div class="command-group">
                     <h3>Events Pipeline</h3>
-                    <button class="btn" onclick="runCommand('events')">Extract Events</button>
-                    <button class="btn" onclick="runCommand('event_edges')">Event Edges</button>
-                    <button class="btn" onclick="runCommand('ttl_events')">Export Events TTL</button>
+                    <button class="btn" onclick="runCommand('events')" title="Extract events using regex patterns. Event types: Acquisition, Funding, Appointment, Launch, Founding. Outputs: out/events.jsonl.">Extract Events</button>
+                    <button class="btn" onclick="runCommand('event_edges')" title="Convert extracted events to edge format. Outputs: out/edges.events.jsonl.">Event Edges</button>
+                    <button class="btn" onclick="runCommand('ttl_events')" title="Export events to RDF/Turtle format. Outputs: graph.events.ttl.">Export Events TTL</button>
                 </div>
                 
                 <div class="command-group">
                     <h3>Reports & Utilities</h3>
-                    <button class="btn" onclick="runCommand('report')">Quality Report</button>
-                    <button class="btn btn-danger" onclick="runCommand('clean')">Clean</button>
+                    <button class="btn" onclick="runCommand('report')" title="Generate quality report with statistics. Shows prediction counts, edge counts, training distribution, and thresholds.">Quality Report</button>
+                    <button class="btn btn-danger" onclick="runCommand('clean')" title="⚠️ Remove all output files and models. Cleans: out/, models/, training/re_*.jsonl. Use with caution!">Clean</button>
                 </div>
                 
                 <div id="commandOutput" class="output" style="display: none;"></div>

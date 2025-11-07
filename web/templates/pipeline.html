@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GroundKG Pipeline Documentation</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: #f5f5f5;
+            color: #333;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        .nav {
+            background: white;
+            padding: 15px 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .nav a {
+            color: #3498db;
+            text-decoration: none;
+            margin-right: 20px;
+            font-weight: 500;
+        }
+        
+        .nav a:hover {
+            text-decoration: underline;
+        }
+        
+        h1 {
+            color: #2c3e50;
+            margin-bottom: 10px;
+        }
+        
+        .subtitle {
+            color: #7f8c8d;
+            margin-bottom: 30px;
+        }
+        
+        .section {
+            background: white;
+            padding: 25px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .section h2 {
+            color: #2c3e50;
+            margin-bottom: 15px;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 8px;
+        }
+        
+        .section h3 {
+            color: #34495e;
+            margin-top: 20px;
+            margin-bottom: 10px;
+            font-size: 18px;
+        }
+        
+        .pipeline-flow {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 5px;
+            margin: 20px 0;
+            font-family: 'Monaco', 'Courier New', monospace;
+            font-size: 14px;
+            line-height: 1.8;
+        }
+        
+        .pipeline-step {
+            margin: 10px 0;
+            padding-left: 20px;
+            position: relative;
+        }
+        
+        .pipeline-step::before {
+            content: '→';
+            position: absolute;
+            left: 0;
+            color: #3498db;
+            font-weight: bold;
+        }
+        
+        .file-link {
+            display: inline-block;
+            background: #3498db;
+            color: white;
+            padding: 5px 12px;
+            border-radius: 4px;
+            text-decoration: none;
+            font-size: 13px;
+            margin: 5px 5px 5px 0;
+            transition: background 0.3s;
+        }
+        
+        .file-link:hover {
+            background: #2980b9;
+        }
+        
+        .file-link.python {
+            background: #27ae60;
+        }
+        
+        .file-link.python:hover {
+            background: #229954;
+        }
+        
+        .code-block {
+            background: #2c3e50;
+            color: #ecf0f1;
+            padding: 15px;
+            border-radius: 5px;
+            font-family: 'Monaco', 'Courier New', monospace;
+            font-size: 12px;
+            overflow-x: auto;
+            margin: 10px 0;
+        }
+        
+        .info-box {
+            background: #e8f4f8;
+            border-left: 4px solid #3498db;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 4px;
+        }
+        
+        .warning-box {
+            background: #fff3cd;
+            border-left: 4px solid #f39c12;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 4px;
+        }
+        
+        .diagram {
+            background: white;
+            border: 2px solid #e9ecef;
+            padding: 20px;
+            border-radius: 5px;
+            margin: 20px 0;
+            text-align: center;
+        }
+        
+        .diagram-line {
+            margin: 10px 0;
+            font-size: 16px;
+            color: #2c3e50;
+        }
+        
+        .diagram-arrow {
+            color: #3498db;
+            font-size: 20px;
+            margin: 5px 0;
+        }
+        
+        ul {
+            margin-left: 20px;
+            margin-top: 10px;
+        }
+        
+        li {
+            margin: 8px 0;
+        }
+        
+        .component-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        
+        .component-card {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            border-left: 3px solid #3498db;
+        }
+        
+        .component-card h4 {
+            color: #2c3e50;
+            margin-bottom: 8px;
+        }
+        
+        .component-card p {
+            font-size: 14px;
+            color: #555;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="nav">
+            <a href="/">← Back to Dashboard</a>
+            <a href="/pipeline">Pipeline Documentation</a>
+        </div>
+        
+        <h1>GroundKG Pipeline Documentation</h1>
+        <p class="subtitle">Complete guide to the knowledge graph extraction pipeline</p>
+        
+        <div class="section">
+            <h2>Overview</h2>
+            <p>GroundKG extracts structured knowledge graphs from unstructured text using a combination of:</p>
+            <ul>
+                <li><strong>spaCy NER</strong> - Named entity recognition</li>
+                <li><strong>Sentence Transformers</strong> - Semantic embeddings (all-MiniLM-L6-v2)</li>
+                <li><strong>Logistic Regression</strong> - Relation classification</li>
+                <li><strong>Self-training</strong> - Iterative model improvement</li>
+            </ul>
+        </div>
+        
+        <div class="section">
+            <h2>Pipeline Flow</h2>
+            <div class="pipeline-flow">
+                <div class="pipeline-step"><strong>1. Bootstrap Seeds</strong> - Auto-generate initial training data</div>
+                <div class="pipeline-step"><strong>2. Cold Start</strong> - Train first model from seeds</div>
+                <div class="pipeline-step"><strong>3. NER</strong> - Extract entities from corpus</div>
+                <div class="pipeline-step"><strong>4. Candidates</strong> - Generate entity pairs</div>
+                <div class="pipeline-step"><strong>5. Score</strong> - Classify relations using sentence transformers</div>
+                <div class="pipeline-step"><strong>6. Auto-Select</strong> - Mine high-confidence examples</div>
+                <div class="pipeline-step"><strong>7. Retrain</strong> - Improve model with new data</div>
+                <div class="pipeline-step"><strong>8. Infer</strong> - Extract edges above threshold</div>
+                <div class="pipeline-step"><strong>9. Export</strong> - Generate RDF/Turtle graph</div>
+            </div>
+        </div>
+        
+        <div class="section">
+            <h2>Core Components</h2>
+            
+            <div class="component-grid">
+                <div class="component-card">
+                    <h4>Entity Extraction (NER)</h4>
+                    <p>Extracts named entities using spaCy transformer model + EntityRuler patterns</p>
+                    <a href="javascript:viewFile('ner')" class="file-link python">View Output</a>
+                    <a href="javascript:viewSource('groundkg/ner_tag.py')" class="file-link python">ner_tag.py</a>
+                </div>
+                
+                <div class="component-card">
+                    <h4>Candidate Generation</h4>
+                    <p>Creates entity pairs within sentences, filtered by distance and types</p>
+                    <a href="javascript:viewFile('candidates')" class="file-link python">View Output</a>
+                    <a href="javascript:viewSource('groundkg/candidates.py')" class="file-link python">candidates.py</a>
+                </div>
+                
+                <div class="component-card">
+                    <h4>Relation Scoring</h4>
+                    <p>Uses sentence transformers to generate embeddings, then ONNX model for classification</p>
+                    <a href="javascript:viewFile('scored')" class="file-link python">View Output</a>
+                    <a href="javascript:viewSource('groundkg/re_score.py')" class="file-link python">re_score.py</a>
+                </div>
+                
+                <div class="component-card">
+                    <h4>Edge Inference</h4>
+                    <p>Promotes high-confidence predictions to edges using per-class thresholds</p>
+                    <a href="javascript:viewFile('edges')" class="file-link python">View Output</a>
+                    <a href="javascript:viewSource('tools/promote_from_scored.py')" class="file-link python">promote_from_scored.py</a>
+                </div>
+                
+                <div class="component-card">
+                    <h4>Model Training</h4>
+                    <p>Trains sentence transformer + LogisticRegression classifier, exports to ONNX</p>
+                    <a href="javascript:viewSource('training/train_re_transformers.py')" class="file-link python">train_re_transformers.py</a>
+                </div>
+                
+                <div class="component-card">
+                    <h4>Seed Bootstrap</h4>
+                    <p>Auto-generates training seeds using regex patterns and type-gating</p>
+                    <a href="javascript:viewFile('seed')" class="file-link python">View Output</a>
+                    <a href="javascript:viewSource('tools/bootstrap_seed_from_candidates.py')" class="file-link python">bootstrap_seed_from_candidates.py</a>
+                </div>
+            </div>
+        </div>
+        
+        <div class="section">
+            <h2>Detailed Pipeline Steps</h2>
+            
+            <h3>1. Bootstrap Seeds</h3>
+            <p>Automatically generates initial training data from your corpus without requiring manual labeling.</p>
+            <div class="info-box">
+                <strong>Process:</strong> Scans candidate pairs for clear connector phrases (e.g., "is headquartered in", "subsidiary of") and applies type-gating for high precision.
+            </div>
+            <p><strong>Files:</strong></p>
+            <ul>
+                <li><a href="javascript:viewSource('tools/bootstrap_seed_from_candidates.py')" class="file-link python">tools/bootstrap_seed_from_candidates.py</a> - Main bootstrap script</li>
+                <li><a href="javascript:viewFile('seed')" class="file-link">training/seed.jsonl</a> - Generated seed file</li>
+            </ul>
+            
+            <h3>2. Cold Start (Training)</h3>
+            <p>Trains the first model from seed data using sentence transformers.</p>
+            <div class="info-box">
+                <strong>Process:</strong> Splits seed.jsonl 80/20, generates embeddings using all-MiniLM-L6-v2, trains LogisticRegression, computes thresholds, exports to ONNX.
+            </div>
+            <p><strong>Files:</strong></p>
+            <ul>
+                <li><a href="javascript:viewSource('training/train_re_transformers.py')" class="file-link python">training/train_re_transformers.py</a> - Training script</li>
+                <li><a href="javascript:viewFile('thresholds')" class="file-link">models/thresholds.json</a> - Per-class thresholds</li>
+                <li><a href="javascript:viewFile('classes')" class="file-link">models/classes.json</a> - Class labels</li>
+                <li>models/promoter_v1.onnx - Trained model (binary)</li>
+            </ul>
+            
+            <h3>3. Named Entity Recognition (NER)</h3>
+            <p>Extracts entities from text using spaCy's transformer-based NER model plus custom EntityRuler patterns.</p>
+            <div class="info-box">
+                <strong>Pipeline Components:</strong> sentencizer → entity_ruler → ner (statistical model)
+            </div>
+            <p><strong>Files:</strong></p>
+            <ul>
+                <li><a href="javascript:viewSource('groundkg/ner_tag.py')" class="file-link python">groundkg/ner_tag.py</a> - NER extraction</li>
+                <li><a href="javascript:viewSource('training/ruler_patterns.jsonl')" class="file-link">training/ruler_patterns.jsonl</a> - Custom entity patterns</li>
+                <li><a href="javascript:viewFile('ner')" class="file-link">out/pack.ner.jsonl</a> - Output (sentences with entities)</li>
+            </ul>
+            
+            <h3>4. Candidate Generation</h3>
+            <p>Creates entity pairs within sentences, filtered by character distance and entity type compatibility.</p>
+            <p><strong>Files:</strong></p>
+            <ul>
+                <li><a href="javascript:viewSource('groundkg/candidates.py')" class="file-link python">groundkg/candidates.py</a> - Pair generation</li>
+                <li><a href="javascript:viewFile('candidates')" class="file-link">out/pack.candidates.jsonl</a> - Output (subject-object pairs)</li>
+            </ul>
+            
+            <h3>5. Relation Scoring</h3>
+            <p>Uses sentence transformers to generate semantic embeddings, then ONNX model to classify relations.</p>
+            <div class="info-box">
+                <strong>Model:</strong> all-MiniLM-L6-v2 (384-dimensional embeddings) → LogisticRegression classifier
+            </div>
+            <p><strong>Files:</strong></p>
+            <ul>
+                <li><a href="javascript:viewSource('groundkg/re_score.py')" class="file-link python">groundkg/re_score.py</a> - Scoring script</li>
+                <li><a href="javascript:viewFile('scored')" class="file-link">out/pack.scored.jsonl</a> - Output (predictions with probabilities)</li>
+            </ul>
+            
+            <h3>6. Self-Training (Auto-Select)</h3>
+            <p>Mines high-confidence predictions from scored output and retrains the model for iterative improvement.</p>
+            <div class="info-box">
+                <strong>Process:</strong> Selects examples above threshold (POS_THR=0.95, NEG_THR=0.95), retrains model, adaptively adjusts thresholds if needed.
+            </div>
+            <p><strong>Files:</strong></p>
+            <ul>
+                <li><a href="javascript:viewSource('tools/select_training_from_scored.py')" class="file-link python">tools/select_training_from_scored.py</a> - Training data selection</li>
+                <li><a href="javascript:viewFile('train')" class="file-link">training/re_train.jsonl</a> - Selected training examples</li>
+                <li><a href="javascript:viewFile('dev')" class="file-link">training/re_dev.jsonl</a> - Dev examples</li>
+            </ul>
+            
+            <h3>7. Edge Inference</h3>
+            <p>Promotes high-confidence predictions to edges using per-class thresholds.</p>
+            <p><strong>Files:</strong></p>
+            <ul>
+                <li><a href="javascript:viewSource('tools/promote_from_scored.py')" class="file-link python">tools/promote_from_scored.py</a> - Threshold filtering</li>
+                <li><a href="javascript:viewSource('tools/adjust_thresholds.py')" class="file-link python">tools/adjust_thresholds.py</a> - Adaptive threshold adjustment</li>
+                <li><a href="javascript:viewSource('groundkg/dedupe_edges.py')" class="file-link python">groundkg/dedupe_edges.py</a> - Deduplication</li>
+                <li><a href="javascript:viewFile('edges')" class="file-link">out/edges.dedup.jsonl</a> - Final edges</li>
+            </ul>
+            
+            <h3>8. Graph Export</h3>
+            <p>Exports edges to RDF/Turtle format for knowledge graph representation.</p>
+            <p><strong>Files:</strong></p>
+            <ul>
+                <li><a href="javascript:viewSource('groundkg/export_ttl.py')" class="file-link python">groundkg/export_ttl.py</a> - TTL export</li>
+                <li><a href="javascript:viewFile('graph')" class="file-link">out/graph.ttl</a> - RDF/Turtle output</li>
+            </ul>
+        </div>
+        
+        <div class="section">
+            <h2>Events Pipeline (Parallel)</h2>
+            <p>Extracts structured events using regex patterns, independent of the main relation extraction pipeline.</p>
+            <div class="component-grid">
+                <div class="component-card">
+                    <h4>Event Extraction</h4>
+                    <p>Extracts events: Acquisition, Funding, Appointment, Launch, Founding</p>
+                    <a href="javascript:viewSource('groundkg/event_extract.py')" class="file-link python">event_extract.py</a>
+                </div>
+                
+                <div class="component-card">
+                    <h4>Event to Edges</h4>
+                    <p>Converts events to edge format</p>
+                    <a href="javascript:viewSource('groundkg/events_to_edges.py')" class="file-link python">events_to_edges.py</a>
+                </div>
+            </div>
+        </div>
+        
+        <div class="section">
+            <h2>Configuration Files</h2>
+            <ul>
+                <li><a href="javascript:viewSource('config/predicates.yaml')" class="file-link">config/predicates.yaml</a> - Defines relation types (predicates)</li>
+                <li><a href="javascript:viewSource('training/ruler_patterns.jsonl')" class="file-link">training/ruler_patterns.jsonl</a> - Custom entity patterns for EntityRuler</li>
+                <li><a href="javascript:viewFile('thresholds')" class="file-link">models/thresholds.json</a> - Per-class confidence thresholds (generated)</li>
+                <li><a href="javascript:viewFile('classes')" class="file-link">models/classes.json</a> - Class labels (generated)</li>
+            </ul>
+        </div>
+        
+        <div class="section">
+            <h2>Quality Metrics</h2>
+            <p>The pipeline includes several quality indicators:</p>
+            <ul>
+                <li><strong>Prediction Distribution</strong> - Counts and average probabilities per class</li>
+                <li><strong>Edge Statistics</strong> - Total edges emitted, per-predicate counts</li>
+                <li><strong>Training Distribution</strong> - Label distribution in training data</li>
+                <li><strong>Thresholds</strong> - Current per-class thresholds</li>
+            </ul>
+            <p><strong>Files:</strong></p>
+            <ul>
+                <li><a href="javascript:viewSource('tools/quality_report.py')" class="file-link python">tools/quality_report.py</a> - Quality metrics generator</li>
+            </ul>
+        </div>
+        
+        <div class="section">
+            <h2>Viewing Source Code</h2>
+            <p>Click any file link above to view the Python source code or generated output files. Source files open in a new window showing the code, while output files show the first 100 lines of generated data.</p>
+        </div>
+    </div>
+    
+    <script>
+        function viewFile(key) {
+            window.open(`/api/file/${key}?lines=100`, '_blank');
+        }
+        
+        function viewSource(path) {
+            // Read file from filesystem and display
+            fetch(`/api/source/${encodeURIComponent(path)}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        alert('Error: ' + data.error);
+                        return;
+                    }
+                    const win = window.open('', '_blank');
+                    win.document.write(`
+                        <html>
+                            <head>
+                                <title>${data.path}</title>
+                                <style>
+                                    body { font-family: monospace; padding: 20px; background: #2c3e50; color: #ecf0f1; }
+                                    pre { background: #34495e; padding: 15px; border-radius: 5px; overflow-x: auto; }
+                                </style>
+                            </head>
+                            <body>
+                                <h2>${data.path}</h2>
+                                <pre>${escapeHtml(data.content)}</pre>
+                            </body>
+                        </html>
+                    `);
+                })
+                .catch(error => {
+                    alert('Error loading file: ' + error.message);
+                });
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+    </script>
+</body>
+</html>
+
