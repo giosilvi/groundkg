@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GroundKG Pipeline Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: #f5f5f5;
+            color: #333;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        h1 {
+            color: #2c3e50;
+            margin-bottom: 10px;
+        }
+        
+        .subtitle {
+            color: #7f8c8d;
+            margin-bottom: 30px;
+        }
+        
+        .status-bar {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .status-item {
+            display: inline-block;
+            margin-right: 20px;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        
+        .status-ready { background: #d4edda; color: #155724; }
+        .status-seeded { background: #fff3cd; color: #856404; }
+        .status-complete { background: #d1ecf1; color: #0c5460; }
+        .status-not-started { background: #f8d7da; color: #721c24; }
+        
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        
+        @media (max-width: 1200px) {
+            .grid {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        .panel {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .panel h2 {
+            color: #2c3e50;
+            margin-bottom: 15px;
+            font-size: 18px;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 8px;
+        }
+        
+        .command-group {
+            margin-bottom: 20px;
+        }
+        
+        .command-group h3 {
+            font-size: 14px;
+            color: #7f8c8d;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .btn {
+            display: inline-block;
+            padding: 10px 20px;
+            margin: 5px;
+            background: #3498db;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background 0.3s;
+        }
+        
+        .btn:hover {
+            background: #2980b9;
+        }
+        
+        .btn:disabled {
+            background: #95a5a6;
+            cursor: not-allowed;
+        }
+        
+        .btn-success { background: #27ae60; }
+        .btn-success:hover { background: #229954; }
+        
+        .btn-warning { background: #f39c12; }
+        .btn-warning:hover { background: #e67e22; }
+        
+        .btn-danger { background: #e74c3c; }
+        .btn-danger:hover { background: #c0392b; }
+        
+        .output {
+            background: #2c3e50;
+            color: #ecf0f1;
+            padding: 15px;
+            border-radius: 5px;
+            font-family: 'Monaco', 'Courier New', monospace;
+            font-size: 12px;
+            max-height: 400px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            margin-top: 10px;
+        }
+        
+        .file-list {
+            list-style: none;
+        }
+        
+        .file-item {
+            padding: 8px;
+            margin: 5px 0;
+            background: #f8f9fa;
+            border-radius: 4px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .file-item:hover {
+            background: #e9ecef;
+        }
+        
+        .file-info {
+            font-size: 12px;
+            color: #7f8c8d;
+        }
+        
+        .quality-report {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            font-family: 'Monaco', 'Courier New', monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+            max-height: 500px;
+            overflow-y: auto;
+        }
+        
+        .loading {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border: 2px solid #f3f3f3;
+            border-top: 2px solid #3498db;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-left: 10px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .badge {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 3px;
+            font-size: 11px;
+            font-weight: bold;
+            margin-left: 8px;
+        }
+        
+        .badge-success { background: #d4edda; color: #155724; }
+        .badge-warning { background: #fff3cd; color: #856404; }
+        .badge-danger { background: #f8d7da; color: #721c24; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>GroundKG Pipeline Dashboard</h1>
+        <p class="subtitle">Run pipeline commands and monitor outputs</p>
+        
+        <div class="status-bar" id="statusBar">
+            <span class="status-item status-not-started">Loading...</span>
+        </div>
+        
+        <div class="grid">
+            <div class="panel">
+                <h2>Pipeline Commands</h2>
+                
+                <div class="command-group">
+                    <h3>Bootstrap & Training</h3>
+                    <button class="btn" onclick="runCommand('bootstrap')">Bootstrap Seeds</button>
+                    <button class="btn" onclick="runCommand('coldstart')">Cold Start (Train)</button>
+                    <button class="btn btn-success" onclick="runCommand('pipeline')">Full Pipeline</button>
+                </div>
+                
+                <div class="command-group">
+                    <h3>Core Pipeline</h3>
+                    <button class="btn" onclick="runCommand('ner')">NER</button>
+                    <button class="btn" onclick="runCommand('cand')">Candidates</button>
+                    <button class="btn" onclick="runCommand('score')">Score</button>
+                    <button class="btn" onclick="runCommand('infer')">Infer</button>
+                    <button class="btn" onclick="runCommand('edges')">Edges</button>
+                    <button class="btn" onclick="runCommand('ttl')">Export TTL</button>
+                </div>
+                
+                <div class="command-group">
+                    <h3>Self-Training</h3>
+                    <button class="btn btn-warning" onclick="runCommand('autoselect')">Auto-Select & Retrain</button>
+                    <button class="btn" onclick="runCommand('rescore')">Rescore</button>
+                </div>
+                
+                <div class="command-group">
+                    <h3>Events Pipeline</h3>
+                    <button class="btn" onclick="runCommand('events')">Extract Events</button>
+                    <button class="btn" onclick="runCommand('event_edges')">Event Edges</button>
+                    <button class="btn" onclick="runCommand('ttl_events')">Export Events TTL</button>
+                </div>
+                
+                <div class="command-group">
+                    <h3>Reports & Utilities</h3>
+                    <button class="btn" onclick="runCommand('report')">Quality Report</button>
+                    <button class="btn btn-danger" onclick="runCommand('clean')">Clean</button>
+                </div>
+                
+                <div id="commandOutput" class="output" style="display: none;"></div>
+            </div>
+            
+            <div class="panel">
+                <h2>Quality Metrics</h2>
+                <button class="btn" onclick="loadQualityReport()">Refresh Quality Report</button>
+                <div id="qualityReport" class="quality-report" style="margin-top: 15px;">
+                    Click "Refresh Quality Report" to load metrics
+                </div>
+            </div>
+        </div>
+        
+        <div class="panel" style="margin-top: 20px;">
+            <h2>Output Files</h2>
+            <button class="btn" onclick="loadFiles()">Refresh File List</button>
+            <ul class="file-list" id="fileList" style="margin-top: 15px;">
+                Loading...
+            </ul>
+        </div>
+    </div>
+    
+    <script>
+        let currentCommand = null;
+        
+        async function runCommand(target) {
+            if (currentCommand) {
+                alert('A command is already running. Please wait.');
+                return;
+            }
+            
+            const outputDiv = document.getElementById('commandOutput');
+            outputDiv.style.display = 'block';
+            outputDiv.textContent = `Running: make -f Makefile.gk ${target}...\n`;
+            currentCommand = target;
+            
+            try {
+                const response = await fetch(`/api/run/${target}`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({background: false})
+                });
+                
+                const result = await response.json();
+                
+                if (result.status === 'completed') {
+                    outputDiv.textContent += result.stdout || '';
+                    if (result.stderr) {
+                        outputDiv.textContent += '\n--- STDERR ---\n' + result.stderr;
+                    }
+                    outputDiv.textContent += '\n\n✓ Command completed successfully';
+                } else if (result.status === 'failed') {
+                    outputDiv.textContent += result.stdout || '';
+                    outputDiv.textContent += '\n\n✗ Command failed';
+                    if (result.stderr) {
+                        outputDiv.textContent += '\n--- STDERR ---\n' + result.stderr;
+                    }
+                } else {
+                    outputDiv.textContent += '\n\n✗ Error: ' + (result.error || 'Unknown error');
+                }
+                
+                // Refresh status and files after command completes
+                setTimeout(() => {
+                    loadPipelineStatus();
+                    loadFiles();
+                    loadQualityReport();
+                }, 1000);
+                
+            } catch (error) {
+                outputDiv.textContent += '\n\n✗ Error: ' + error.message;
+            } finally {
+                currentCommand = null;
+            }
+        }
+        
+        async function loadPipelineStatus() {
+            try {
+                const response = await fetch('/api/pipeline/status');
+                const status = await response.json();
+                
+                const statusBar = document.getElementById('statusBar');
+                const stageClass = `status-${status.stage}`;
+                statusBar.innerHTML = `<span class="status-item ${stageClass}">Stage: ${status.stage}</span>`;
+                
+                for (const [file, exists] of Object.entries(status.files)) {
+                    const badge = exists ? 
+                        '<span class="badge badge-success">✓</span>' : 
+                        '<span class="badge badge-danger">✗</span>';
+                    statusBar.innerHTML += `<span class="status-item">${file}${badge}</span>`;
+                }
+            } catch (error) {
+                console.error('Error loading status:', error);
+            }
+        }
+        
+        async function loadFiles() {
+            try {
+                const response = await fetch('/api/files');
+                const files = await response.json();
+                
+                const fileList = document.getElementById('fileList');
+                fileList.innerHTML = '';
+                
+                for (const [key, file] of Object.entries(files)) {
+                    const li = document.createElement('li');
+                    li.className = 'file-item';
+                    
+                    const info = file.info;
+                    if (info) {
+                        const sizeKB = (info.size / 1024).toFixed(1);
+                        const date = new Date(info.modified * 1000).toLocaleString();
+                        li.innerHTML = `
+                            <div>
+                                <strong>${file.path}</strong>
+                                <button class="btn" style="padding: 5px 10px; margin-left: 10px; font-size: 12px;" 
+                                        onclick="viewFile('${key}')">View</button>
+                            </div>
+                            <div class="file-info">
+                                ${sizeKB} KB • ${info.lines} lines • ${date}
+                            </div>
+                        `;
+                    } else {
+                        li.innerHTML = `
+                            <div><strong>${file.path}</strong></div>
+                            <div class="file-info">File not found</div>
+                        `;
+                    }
+                    
+                    fileList.appendChild(li);
+                }
+            } catch (error) {
+                console.error('Error loading files:', error);
+                document.getElementById('fileList').innerHTML = '<li>Error loading files</li>';
+            }
+        }
+        
+        async function viewFile(key) {
+            try {
+                const response = await fetch(`/api/file/${key}?lines=100`);
+                const data = await response.json();
+                
+                if (data.error) {
+                    alert('Error: ' + data.error);
+                    return;
+                }
+                
+                const win = window.open('', '_blank');
+                win.document.write(`
+                    <html>
+                        <head><title>${data.path}</title></head>
+                        <body style="font-family: monospace; padding: 20px; background: #2c3e50; color: #ecf0f1;">
+                            <h2>${data.path}</h2>
+                            <p>Showing first 100 lines (${data.total_lines} total)</p>
+                            <pre style="background: #34495e; padding: 15px; border-radius: 5px; overflow-x: auto;">${escapeHtml(data.content)}</pre>
+                        </body>
+                    </html>
+                `);
+            } catch (error) {
+                alert('Error loading file: ' + error.message);
+            }
+        }
+        
+        async function loadQualityReport() {
+            const reportDiv = document.getElementById('qualityReport');
+            reportDiv.textContent = 'Loading...';
+            
+            try {
+                const response = await fetch('/api/quality');
+                const result = await response.json();
+                
+                if (result.success) {
+                    reportDiv.textContent = result.output || 'No output';
+                } else {
+                    reportDiv.textContent = 'Error: ' + (result.error || 'Failed to generate report');
+                }
+            } catch (error) {
+                reportDiv.textContent = 'Error: ' + error.message;
+            }
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        // Load initial data
+        loadPipelineStatus();
+        loadFiles();
+        loadQualityReport();
+        
+        // Refresh status every 10 seconds
+        setInterval(loadPipelineStatus, 10000);
+    </script>
+</body>
+</html>
+

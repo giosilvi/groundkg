@@ -29,7 +29,13 @@ quality → quality indicators
 ### 1. Configuration Files
 
 **`config/predicates.yaml`**
-- Defines 6 predicate types: `type`, `covered_by`, `headquartered_in`, `consists_of`, `performs_task`, `none`
+- Defines 13 predicate types: `type`, `covered_by`, `headquartered_in`, `operates_in`, `part_of`, `subsidiary_of`, `parent_of`, `member_of`, `uses`, `provides`, `requires`, `prohibits`, `none`
+- Each predicate includes a description and template for human-readable representation
+
+**`training/ruler_patterns.jsonl`**
+- EntityRuler patterns for domain-specific entities
+- One JSON per line: `{"label":"ROLE","pattern":"CEO"}`
+- Patterns boost entities before statistical NER runs
 
 **`models/thresholds.json`**
 - Per-predicate confidence thresholds
@@ -43,8 +49,13 @@ quality → quality indicators
 
 **`groundkg/ner_tag.py`**
 - Runs spaCy's pre-trained NER on input text
-- Extracts entities: ORG, PERSON, GPE, LAW, PRODUCT, etc.
-- Outputs sentence-level entity annotations
+- **Pipeline setup:**
+  - Adds `sentencizer` first for sentence boundary detection
+  - Adds `entity_ruler` before NER to boost domain-specific entities
+  - Loads patterns from `training/ruler_patterns.jsonl` (e.g., "OpenAI", "CEO", "AI Act")
+  - Then runs statistical NER model
+- Extracts entities: ORG, PERSON, GPE, LAW, PRODUCT, ROLE, EVENT, etc.
+- Outputs sentence-level entity annotations with character offsets
 
 **`groundkg/candidates.py`**
 - Pairs entities within sentences
@@ -54,18 +65,25 @@ quality → quality indicators
 
 ### 3. Model Training
 
-Deprecated: `training/mk_training_data.py` (rule-based bootstrap) has been removed.
-
-**`training/train_re_sklearn.py`**
-- Trains TF-IDF + Logistic Regression model
-- Exports to ONNX format for inference
+**`training/train_re_transformers.py`** (default)
+- Uses sentence transformer embeddings (`all-MiniLM-L6-v2`) + Logistic Regression
+- Better semantic understanding than TF-IDF
+- Exports LogisticRegression to ONNX format for inference
 - Auto-tunes thresholds using precision-recall curves
 - Outputs: `promoter_v1.onnx`, `thresholds.json`, `classes.json`
+
+**`training/train_re_sklearn.py`** (deprecated)
+- TF-IDF + Logistic Regression model (kept for backward compatibility)
+- Use `training/train_re_transformers.py` instead
 
 ### 4. Model Inference
 
 **`groundkg/re_score.py`**
-- Loads ONNX model and outputs per-pair predictions with probabilities.
+- Loads sentence transformer model (`all-MiniLM-L6-v2`) for embeddings
+- Loads ONNX model (LogisticRegression) for classification
+- Converts text to embeddings, then runs ONNX model on embeddings
+- Outputs per-pair predictions with probabilities
+
 **`tools/promote_from_scored.py`**
 - Applies per-class thresholds and dedupes to produce final edges.
 
@@ -81,10 +99,46 @@ pip install -r requirement.txt
 python -m spacy download en_core_web_sm
 ```
 
+### Automatic Seed Bootstrap
+
+When starting with a new corpus and no existing model, you can automatically generate initial training seeds:
+
+```bash
+# 1) Extract entities and candidates (no model needed)
+make -f Makefile.gk ner cand
+
+# 2) Auto-generate seeds from clear connector patterns
+make -f Makefile.gk bootstrap_seed
+# or use one-shot helper:
+make -f Makefile.gk bootstrap
+
+# 3) Train first model from auto-generated seeds
+make -f Makefile.gk coldstart
+
+# 4) Run full pipeline
+make -f Makefile.gk crawl manifest ner cand score infer edges ttl report
+```
+
+**How Bootstrap Works:**
+
+`tools/bootstrap_seed_from_candidates.py` scans `out/pack.candidates.jsonl` for entity pairs and looks for high-precision connector phrases:
+- "is headquartered in" → `headquartered_in`
+- "subsidiary of" → `subsidiary_of`
+- "uses" → `uses`
+- "provides" → `provides`
+- And 7 more patterns
+
+The bootstrap is type-gated (only accepts pairs with compatible entity types) and conservative (avoids overly broad matches). It automatically adds negative examples (labeled "none") from candidate pairs that don't match any pattern, ensuring at least 2 classes for training (required by logistic regression). Outputs `training/seed.jsonl` in training format.
+
+**Future Bootstrap Methods (Placeholders):**
+- Dependency-based: `tools/bootstrap_seed_dep.py --enable` (spaCy Matcher patterns)
+- KB-backed: `tools/bootstrap_seed_kb.py --kb config/kb.json` (distant supervision)
+- LLM-assisted: `tools/bootstrap_seed_llm.py --enable` (with gating + audits)
+
 ### Typical Run
 
 ```bash
-make pipeline
+make -f Makefile.gk all
 make pack_stats
 make lint
 ```
@@ -142,7 +196,7 @@ Edit `models/thresholds.json`:
 ### Adding New Predicates
 1. Add to `config/predicates.yaml`
 2. Add training examples to `training/re_train.jsonl`
-3. Retrain: `python training/train_re_sklearn.py`
+3. Retrain: `python training/train_re_transformers.py` (or `make -f Makefile.gk coldstart`)
 
 ### Improving Recall (More Extractions)
 - Lower thresholds in `models/thresholds.json`
@@ -155,18 +209,21 @@ Edit `models/thresholds.json`:
 config/
   predicates.yaml          # Predicate taxonomy
 models/
-  promoter_v1.onnx         # Trained ONNX model
+  promoter_v1.onnx         # Trained ONNX model (LogisticRegression)
   thresholds.json          # Confidence thresholds
   classes.json             # Class labels
 training/
-  (deprecated) mk_training_data.py was removed
-  train_re_sklearn.py      # Training script
+  train_re_transformers.py # Training script (sentence transformers, default)
+  train_re_sklearn.py      # Training script (TF-IDF, deprecated)
   re_train.jsonl           # Training examples
   re_dev.jsonl             # Development examples
+  ruler_patterns.jsonl     # EntityRuler patterns (domain-specific entities)
+tools/
+  bootstrap_seed_from_candidates.py  # Auto-seed generation
 groundkg/
   ner_tag.py               # NER extraction
   candidates.py            # Candidate generation
-  re_infer.py              # Model inference
+  re_score.py              # Model inference (sentence transformers + ONNX)
 out/
   ner.jsonl                # NER output
   candidates.jsonl         # Candidate pairs

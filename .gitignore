@@ -9,10 +9,22 @@ build/
 out/
 data/corpus/
 data/raw/
+data/meta.jsonl
+docs.yaml
 /tmp/
 models/*.onnx
 models/*.json
-!models/thresholds.json
-!models/classes.json
 training/re_train.jsonl
 training/re_dev.jsonl
+training/seed.jsonl
+vulture_whitelist.py
+tools/list_py_files.py
+# Generated graph exports
+graph.events.ttl
+graph.merged.ttl
+
+# Flask web frontend
+web/instance/
+web/*.log
+web/.flaskenv
+*.ipynb

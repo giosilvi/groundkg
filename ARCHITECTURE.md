@@ -43,8 +43,13 @@ quality (tools/quality_report.py) → summary metrics
 
 **groundkg/ner_tag.py**
 - Runs spaCy's NER on input text
+- **Pipeline components:**
+  - `sentencizer`: Rule-based sentence segmentation (runs first)
+  - `entity_ruler`: Pattern-based entity boost (loads from `training/ruler_patterns.jsonl`)
+  - `ner`: Statistical NER model (spaCy transformer-based)
 - Outputs: `{"doc_id", "sent_idx", "text", "entities": [...]}`
-- Entities include: ORG, PRODUCT, PERSON, GPE, LAW, etc.
+- Entities include: ORG, PRODUCT, PERSON, GPE, LAW, ROLE, EVENT, etc.
+- Supports custom entity labels via EntityRuler patterns
 
 **groundkg/candidates.py**
 - Pairs entities within the same sentence

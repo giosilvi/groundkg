@@ -14,3 +14,6 @@ trafilatura==1.6.2
 pdfminer.six==20221105
 beautifulsoup4==4.12.2
 python-slugify==8.0.1
+sentence-transformers>=2.2.0
+torch>=2.0.0
+flask>=2.3.0

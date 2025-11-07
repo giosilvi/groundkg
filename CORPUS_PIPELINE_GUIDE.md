@@ -153,7 +153,29 @@ Generates `docs.yaml` with provenance:
   sha256: abc123...
 ```
 
-### 3. RE Scorer (`groundkg/re_score.py`)
+### 3. NER Extraction (`groundkg/ner_tag.py`)
+
+**Pipeline Components:**
+- **Sentencizer**: Splits text into sentences (runs first)
+- **EntityRuler**: Pattern-based entity recognition (loads from `training/ruler_patterns.jsonl`)
+  - Domain-specific entities: "OpenAI", "Tesla", "AI Act"
+  - Roles: "CEO", "CTO", "founder"
+  - Custom labels: ROLE, EVENT, LAW, PRODUCT
+- **NER Model**: Statistical entity recognition (spaCy transformer model)
+
+**Pattern File Format** (`training/ruler_patterns.jsonl`):
+```json
+{"label":"ROLE","pattern":"CEO"}
+{"label":"ORG","pattern":"OpenAI"}
+{"label":"PRODUCT","pattern":"Model 3"}
+```
+
+**Usage:**
+- Add patterns to `training/ruler_patterns.jsonl` (one JSON per line)
+- Patterns are exact matches (case-sensitive unless using regex)
+- EntityRuler runs before statistical NER for guaranteed coverage
+
+### 4. RE Scorer (`groundkg/re_score.py`)
 
 Runs ONNX model inference and outputs probabilities:
 
@@ -186,30 +208,59 @@ Runs ONNX model inference and outputs probabilities:
 
 ### Bootstrap (First Time)
 
+**Option A: Automatic seed generation (recommended)**
+
 ```bash
-# 1. Create initial training data manually
-cat > training/re_train.jsonl <<EOF
+# 1) Extract entities and candidates (no model needed)
+make -f Makefile.gk ner cand
+
+# 2) Auto-generate seeds from corpus
+make -f Makefile.gk bootstrap_seed
+# Note: Bootstrap automatically adds negative examples ("none" class) 
+# to ensure at least 2 classes for training
+
+# 3) Train initial model
+make -f Makefile.gk coldstart
+
+# 4) Crawl corpus
+make -f Makefile.gk crawl
+make -f Makefile.gk manifest
+
+# 5) Process corpus with initial model
+make -f Makefile.gk ner cand score infer edges ttl report
+
+# 6) Self-train (retrain from high-confidence predictions)
+make -f Makefile.gk autoselect
+
+# 7) Verify improved model
+make -f Makefile.gk score infer edges ttl report
+```
+
+**Option B: Manual seed creation (if you have labeled examples)**
+
+```bash
+# 1) Create training/seed.jsonl manually
+cat > training/seed.jsonl <<EOF
 {"text":"[E1]Tesla[/E1] is headquartered in [E2]Austin[/E2].","label":"headquartered_in"}
 {"text":"[E1]ACME[/E1] is a [E2]Digital Service Provider[/E2].","label":"type"}
-{"text":"[E1]Neural networks[/E1] are used for [E2]pattern recognition[/E2].","label":"performs_task"}
+{"text":"[E1]Neural networks[/E1] are used for [E2]pattern recognition[/E2].","label":"uses"}
 EOF
 
-# 2. Train initial model
-python training/train_re_sklearn.py
+# 2) Train initial model
+make -f Makefile.gk coldstart
 
-# 3. Crawl corpus
-make crawl
-make manifest
+# 3) Crawl corpus
+make -f Makefile.gk crawl
+make -f Makefile.gk manifest
 
-# 4. Process corpus with initial model
-make pack_corpus
-make pack_stats
+# 4) Process corpus with initial model
+make -f Makefile.gk ner cand score infer edges ttl report
 
-# 5. Self-train (retrain from high-confidence predictions)
-make auto_train
+# 5) Self-train (retrain from high-confidence predictions)
+make -f Makefile.gk autoselect
 
-# 6. Verify improved model
-make demo
+# 6) Verify improved model
+make -f Makefile.gk score infer edges ttl report
 ```
 
 ### Iterative Improvement

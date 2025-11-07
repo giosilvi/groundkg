@@ -8,20 +8,109 @@ import pytest
 if "numpy" not in sys.modules:
     fake_np = types.ModuleType("numpy")
 
+    class FakeArray:
+        def __init__(self, data, dtype=None):
+            self.data = data
+            self.dtype = dtype
+            if isinstance(data, list) and len(data) > 0 and isinstance(data[0], list):
+                self.shape = (len(data), len(data[0]))
+            elif isinstance(data, list):
+                self.shape = (len(data),)
+            else:
+                self.shape = ()
+
+        def reshape(self, *shape):
+            # Simple reshape - just return a new FakeArray with new shape
+            flat = self._flatten()
+            if len(shape) == 1:
+                if isinstance(shape[0], tuple):
+                    new_shape = shape[0]
+                else:
+                    # Handle reshape(1, -1) case
+                    if shape[0] == 1:
+                        return FakeArray([flat], self.dtype)
+                    new_shape = shape[0]
+            elif len(shape) == 2:
+                # Handle reshape(1, -1) case
+                if shape[0] == 1:
+                    return FakeArray([flat], self.dtype)
+                new_shape = shape
+            else:
+                new_shape = shape
+            return FakeArray(flat, self.dtype)
+
+        def _flatten(self):
+            result = []
+            for item in self.data:
+                if isinstance(item, list):
+                    result.extend(item)
+                else:
+                    result.append(item)
+            return result
+
+        def astype(self, dtype):
+            return FakeArray(self.data, dtype)
+
+        def flatten(self):
+            return FakeArray(self._flatten(), self.dtype)
+
+        def __getitem__(self, idx):
+            item = self.data[idx]
+            # If item is a list, wrap it in FakeArray for proper method access
+            if isinstance(item, list):
+                return FakeArray(item, self.dtype)
+            return item
+
+        def __setitem__(self, idx, value):
+            if isinstance(idx, tuple):
+                # Handle 2D indexing like probs[0][1] = 0.9
+                self.data[idx[0]][idx[1]] = value
+            else:
+                self.data[idx] = value
+
+        def __len__(self):
+            return len(self.data)
+
+        def __iter__(self):
+            for item in self.data:
+                if isinstance(item, list):
+                    yield FakeArray(item, self.dtype)
+                else:
+                    yield item
+
     def array(data, dtype=None):
-        return data
+        return FakeArray(data, dtype)
 
     def argmax(seq):
-        return max(range(len(seq)), key=lambda i: seq[i])
+        if hasattr(seq, '__len__') and len(seq) > 0:
+            if hasattr(seq[0], '__len__'):
+                # 2D array, get argmax of first row
+                return max(range(len(seq[0])), key=lambda i: seq[0][i])
+            return max(range(len(seq)), key=lambda i: seq[i])
+        return 0
 
     def zeros(shape, dtype=float):
-        rows, cols = shape
-        return [[dtype(0) for _ in range(cols)] for _ in range(rows)]
+        if isinstance(shape, tuple) and len(shape) == 2:
+            rows, cols = shape
+            return FakeArray([[dtype(0) for _ in range(cols)] for _ in range(rows)], dtype)
+        elif isinstance(shape, tuple) and len(shape) == 1:
+            return FakeArray([dtype(0)] * shape[0], dtype)
+        else:
+            rows, cols = shape
+            return FakeArray([[dtype(0) for _ in range(cols)] for _ in range(rows)], dtype)
+
+    def asarray(data, dtype=None):
+        if isinstance(data, FakeArray):
+            return data
+        return FakeArray(data, dtype)
 
     fake_np.array = array
     fake_np.argmax = argmax
     fake_np.zeros = zeros
+    fake_np.asarray = asarray
     fake_np.isscalar = lambda value: isinstance(value, (int, float))
+    fake_np.float32 = float
+    fake_np.float64 = float
     sys.modules["numpy"] = fake_np
 
 from groundkg import re_infer, re_score
@@ -57,17 +146,34 @@ def test_re_score_main_streams_predictions(tmp_path, monkeypatch):
 
     class FakeInput:
         name = "text"
+        shape = [None, 384]  # Embedding dimension for all-MiniLM-L6-v2
 
     class FakeSession:
         def get_inputs(self):
             return [FakeInput()]
 
+        def get_outputs(self):
+            return [
+                types.SimpleNamespace(name="label", shape=[None], type="tensor(string)"),
+                types.SimpleNamespace(name="probabilities", shape=[None, len(classes)], type="tensor(float)"),
+            ]
+
         def run(self, _outputs, feeds):
             assert isinstance(feeds, dict)
             probs = fake_np.zeros((1, len(classes)), dtype=float)
             probs[0][1] = 0.9
-            return [["uses"], probs]
+            # Return FakeArray objects to match ONNX output format
+            return [fake_np.array(["uses"]), probs]
 
+    # Mock embedder to return fake embeddings (384 dims for all-MiniLM-L6-v2)
+    class FakeEmbedder:
+        def encode(self, texts, show_progress_bar=False, convert_to_numpy=True):
+            # Return fake embeddings: one per text, each 384 dimensions
+            if isinstance(texts, str):
+                texts = [texts]
+            return fake_np.array([[0.1] * 384 for _ in texts])
+
+    monkeypatch.setattr(re_score, "get_embedder", lambda: FakeEmbedder())
     monkeypatch.setattr(re_score.ort, "InferenceSession", lambda *a, **k: FakeSession())
     buf = io.StringIO()
     monkeypatch.setattr("sys.stdout", buf)
@@ -135,6 +241,9 @@ def test_main_filters_by_threshold_and_types(tmp_path, monkeypatch):
     thresh_path = tmp_path / "thresh.json"
     thresholds = {"uses": 0.5}
     thresh_path.write_text(json.dumps(thresholds), encoding="utf-8")
+    classes_path = tmp_path / "classes.json"
+    classes = ["none", "uses"]
+    classes_path.write_text(json.dumps(classes), encoding="utf-8")
 
     candidates = [
         {
@@ -154,7 +263,6 @@ def test_main_filters_by_threshold_and_types(tmp_path, monkeypatch):
     ]
     cand_path.write_text("\n".join(json.dumps(c) for c in candidates) + "\n", encoding="utf-8")
 
-    classes = json.load(open("models/classes.json", "r", encoding="utf-8"))
     uses_idx = classes.index("uses")
 
     class FakeInput:
@@ -170,6 +278,13 @@ def test_main_filters_by_threshold_and_types(tmp_path, monkeypatch):
             labels = ["uses"]
             return [labels, probs]
 
+    # Mock the classes.json file reading
+    original_open = open
+    def mock_open(path, *args, **kwargs):
+        if "classes.json" in str(path):
+            return original_open(classes_path, *args, **kwargs)
+        return original_open(path, *args, **kwargs)
+    monkeypatch.setattr("builtins.open", mock_open)
     monkeypatch.setattr(re_infer.ort, "InferenceSession", lambda *a, **k: FakeSession())
     buf = io.StringIO()
     monkeypatch.setattr(
@@ -203,6 +318,9 @@ def test_main_skips_low_prob_and_allows_unknown_predicate(tmp_path, monkeypatch)
     thresh_path = tmp_path / "thresh.json"
     thresholds = {"uses": 0.8, "provides": 0.5}
     thresh_path.write_text(json.dumps(thresholds), encoding="utf-8")
+    classes_path = tmp_path / "classes.json"
+    classes = ["none", "uses", "provides"]
+    classes_path.write_text(json.dumps(classes), encoding="utf-8")
 
     candidates = [
         {
@@ -222,7 +340,6 @@ def test_main_skips_low_prob_and_allows_unknown_predicate(tmp_path, monkeypatch)
     ]
     cand_path.write_text("\n".join(json.dumps(c) for c in candidates) + "\n", encoding="utf-8")
 
-    classes = json.load(open("models/classes.json", "r", encoding="utf-8"))
     uses_idx = classes.index("uses")
     provides_idx = classes.index("provides")
 
@@ -244,6 +361,13 @@ def test_main_skips_low_prob_and_allows_unknown_predicate(tmp_path, monkeypatch)
         def run(self, *_args, **_kwargs):
             return self.outputs.pop(0)
 
+    # Mock the classes.json file reading
+    original_open = open
+    def mock_open(path, *args, **kwargs):
+        if "classes.json" in str(path):
+            return original_open(classes_path, *args, **kwargs)
+        return original_open(path, *args, **kwargs)
+    monkeypatch.setattr("builtins.open", mock_open)
     monkeypatch.setattr(re_infer.ort, "InferenceSession", lambda *a, **k: FakeSession())
     monkeypatch.setattr(re_infer, "ALLOWED_TYPES", {k: v for k, v in re_infer.ALLOWED_TYPES.items() if k != "provides"})
     buf = io.StringIO()

@@ -23,4 +23,21 @@ if "spacy" not in sys.modules:
             "spacy is stubbed in tests. Monkeypatch spacy.load within individual tests."
         )
 
-    sys.modules["spacy"] = types.SimpleNamespace(load=_stub_load)
+    fake_spacy = types.SimpleNamespace(load=_stub_load)
+    fake_spacy.__spec__ = None  # Prevent transformers from checking spacy
+    sys.modules["spacy"] = fake_spacy
+
+# Stub sentence_transformers before it's imported
+if "sentence_transformers" not in sys.modules:
+    class _StubSentenceTransformer:
+        def __init__(self, *args, **kwargs):
+            raise RuntimeError(
+                "sentence_transformers is stubbed in tests. Monkeypatch get_embedder in individual tests."
+            )
+
+        def encode(self, *args, **kwargs):
+            raise RuntimeError("sentence_transformers is stubbed in tests.")
+
+    sys.modules["sentence_transformers"] = types.SimpleNamespace(
+        SentenceTransformer=_StubSentenceTransformer
+    )

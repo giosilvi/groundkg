@@ -1,4 +1,8 @@
 # training/train_re_sklearn.py
+# DEPRECATED: This file uses TF-IDF feature extraction.
+# Use training/train_re_transformers.py instead (sentence transformer embeddings).
+# This file is kept for backward compatibility and will be removed in a future version.
+
 import json, os, numpy as np
 from sklearn.linear_model import LogisticRegression
 from sklearn.pipeline import Pipeline

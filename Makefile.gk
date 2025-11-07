@@ -1,0 +1,175 @@
+PY=python
+
+OUT=out
+MODELS=models
+TRAIN=training
+DATA=data
+
+SEED_CSV=$(DATA)/seed.csv
+META=$(DATA)/meta.jsonl
+CORPUS_DIR=$(DATA)/corpus
+
+NER=$(OUT)/pack.ner.jsonl
+CAND=$(OUT)/pack.candidates.jsonl
+SCORED=$(OUT)/pack.scored.jsonl
+EDGES=$(OUT)/edges.jsonl
+DEDUPED=$(OUT)/edges.dedup.jsonl
+TTL=$(OUT)/graph.ttl
+PATTERNS=$(OUT)/patterns.jsonl
+
+ONNX=$(MODELS)/promoter_v1.onnx
+CLASSES=$(MODELS)/classes.json
+THR=$(MODELS)/thresholds.json
+
+TRAIN_TR=$(TRAIN)/re_train.jsonl
+TRAIN_DV=$(TRAIN)/re_dev.jsonl
+SEED_JSON=$(TRAIN)/seed.jsonl
+
+.PHONY: all pipeline coldstart crawl manifest ner cand score patterns autoselect train rescore infer edges ttl report clean
+
+all: crawl manifest ner cand score infer edges ttl report
+
+pipeline: ## Recommended workflow: bootstrap → train → score → autoselect → rescore → edges → report
+	@# Check if model exists, if not bootstrap and train
+	@if [ ! -f $(ONNX) ]; then \
+	  echo "No model found, bootstrapping seeds and training initial model..."; \
+	  $(MAKE) -f Makefile.gk bootstrap coldstart; \
+	fi
+	@# Score with current model
+	$(MAKE) -f Makefile.gk score
+	@# Autoselect (retrain with better data)
+	$(MAKE) -f Makefile.gk autoselect
+	@# Rescore with new model (force by removing old scored file)
+	@rm -f $(SCORED)
+	$(MAKE) -f Makefile.gk score
+	@# Infer, edges, ttl, report
+	$(MAKE) -f Makefile.gk infer edges ttl report
+	@echo ""
+	@echo "Pipeline complete! Check out/edges.dedup.jsonl and out/graph.ttl"
+
+coldstart: ## one-time: use seed to create train/dev and train the first model
+	@[ -f $(SEED_JSON) ] || (echo "Missing $(SEED_JSON) – add a few seed examples (see plan)." && exit 2)
+	@mkdir -p $(OUT) $(MODELS)
+	# bootstrap train/dev from seed: 80/20 split
+	$(PY) -c "import json,random,os,sys; random.seed(0); seed='$(SEED_JSON)'; out_tr='$(TRAIN_TR)'; out_dv='$(TRAIN_DV)'; os.makedirs('$(TRAIN)', exist_ok=True); rows=[json.loads(l) for l in open(seed,'r',encoding='utf-8') if l.strip()]; random.shuffle(rows); n=max(1,int(0.8*len(rows))); open(out_tr,'w',encoding='utf-8').write('\\n'.join(json.dumps(r,ensure_ascii=False) for r in rows[:n])+'\\n'); open(out_dv,'w',encoding='utf-8').write('\\n'.join(json.dumps(r,ensure_ascii=False) for r in rows[n:])+'\\n'); print(f'Bootstrapped {n} train / {len(rows)-n} dev from seed')"
+	$(PY) training/train_re_transformers.py
+
+train_tfidf: ## deprecated: train using TF-IDF (use coldstart for sentence transformers)
+	@echo "WARNING: train_tfidf is deprecated. Use 'coldstart' for sentence transformer training."
+	$(PY) training/train_re_sklearn.py
+
+crawl:
+	@[ -f $(SEED_CSV) ] || (echo "Provide $(SEED_CSV) with columns: doc_id,url,license,lang"; exit 2)
+	$(PY) tools/crawl.py
+
+manifest:
+	$(PY) tools/build_manifest.py
+
+ner:
+	@mkdir -p $(OUT)
+	# concatenate NER over all corpus files
+	@rm -f $(NER)
+	@for f in $(CORPUS_DIR)/*.txt; do \
+	  echo "Processing: $$f"; \
+	  $(PY) -m groundkg.ner_tag $$f --doc-id $$(basename $$f .txt) >> $(NER); \
+	done
+	@echo "Wrote $(NER)"
+
+cand:
+	@echo "Reading: $(NER)"
+	$(PY) groundkg/candidates.py $(NER) > $(CAND)
+	@echo "Wrote: $(CAND)"
+
+score:  ## requires $(ONNX)
+	@[ -f $(ONNX) ] || (echo "Missing $(ONNX). Run `make -f Makefile.gk coldstart` first."; exit 2)
+	$(PY) groundkg/re_score.py $(CAND) $(ONNX) $(CLASSES) > $(SCORED)
+
+patterns:
+	$(PY) tools/mine_patterns.py --scored $(SCORED) --min-count 3 --min-prob 0.9 --json > $(PATTERNS) || true
+
+autoselect:  ## build richer train/dev from scored + patterns + candidates
+	$(PY) tools/select_training_from_scored.py
+	$(PY) training/train_re_transformers.py
+
+rescore:  ## after retraining model, rescore with the new ONNX
+	@rm -f $(SCORED)  # Force rescore after retraining
+	$(PY) groundkg/re_score.py $(CAND) $(ONNX) $(CLASSES) > $(SCORED)
+
+infer:  ## promote to edges using thresholds
+	@# Check if we need to adjust thresholds (if no edges would be emitted)
+	@MIN_THR=$${GK_MIN_THRESHOLD:-0.60}; \
+	$(PY) tools/adjust_thresholds.py $(SCORED) $(THR) 10 $$MIN_THR || true
+	$(PY) tools/promote_from_scored.py $(SCORED) $(THR) > $(EDGES)
+	@# Verify edges were emitted, if not, adjust thresholds and retry
+	@if [ ! -s $(EDGES) ]; then \
+	  echo "No edges emitted, adjusting thresholds (min=$${GK_MIN_THRESHOLD:-0.60})..."; \
+	  MIN_THR=$${GK_MIN_THRESHOLD:-0.60}; \
+	  $(PY) tools/adjust_thresholds.py $(SCORED) $(THR) 10 $$MIN_THR; \
+	  $(PY) tools/promote_from_scored.py $(SCORED) $(THR) > $(EDGES); \
+	fi
+
+edges:
+	$(PY) groundkg/dedupe_edges.py $(EDGES) > $(DEDUPED)
+
+ttl:
+	$(PY) groundkg/export_ttl.py $(DEDUPED) > $(TTL)
+
+report:
+	$(PY) tools/quality_report.py $(SCORED) $(DEDUPED) $(TRAIN_TR) $(THR)
+
+clean:
+	rm -rf $(OUT) $(MODELS) $(TRAIN)/re_*.jsonl
+
+# --- Automatic seed bootstrap (deterministic, high-precision) ---
+
+.PHONY: bootstrap_seed bootstrap
+
+bootstrap_seed:
+	@$(PY) tools/bootstrap_seed_from_candidates.py out/pack.candidates.jsonl training/seed.jsonl
+
+# One-shot helper to build seeds from scratch (no model needed)
+bootstrap: ner cand bootstrap_seed
+	@echo "Bootstrapped seeds to training/seed.jsonl"
+
+# Optional future steps (disabled by default):
+#	@$(PY) tools/bootstrap_seed_dep.py --enable || true
+#	@$(PY) tools/bootstrap_seed_kb.py --kb config/kb.json || true
+#	@$(PY) tools/bootstrap_seed_llm.py --enable || true
+
+# --- Events pipeline (independent of the core graph) ---
+
+.PHONY: manifest_jsonl
+
+# Build a simple JSONL manifest from corpus texts for the events extractor
+out/manifest.jsonl: $(CORPUS_DIR)/*.txt
+	@mkdir -p $(OUT)
+	@python -c "import glob,json,os,io; paths=glob.glob('data/corpus/*.txt'); w=io.open('out/manifest.jsonl','w',encoding='utf-8');\
+ [w.write(json.dumps({'doc_id':os.path.splitext(os.path.basename(p))[0],'text':io.open(p,'r',encoding='utf-8').read()}, ensure_ascii=False)+'\\n') for p in paths]; w.close(); print('Wrote out/manifest.jsonl with %d docs' % len(paths))"
+
+.PHONY: events event_edges ttl_events merge_edges ttl_merged
+
+events: out/events.jsonl
+
+out/events.jsonl: out/manifest.jsonl
+	python -m groundkg.event_extract --manifest out/manifest.jsonl --out out/events.jsonl
+
+event_edges: out/edges.events.jsonl
+
+out/edges.events.jsonl: out/events.jsonl
+	python -m groundkg.events_to_edges --events out/events.jsonl --out out/edges.events.jsonl
+
+ttl_events: graph.events.ttl
+
+graph.events.ttl: out/edges.events.jsonl
+	python -m groundkg.export_ttl out/edges.events.jsonl > graph.events.ttl
+
+# Optional: merge core + events into one edge file then export once
+merge_edges: out/edges.merged.jsonl
+
+out/edges.merged.jsonl: out/edges.jsonl out/edges.events.jsonl
+	cat out/edges.jsonl out/edges.events.jsonl > out/edges.merged.jsonl
+
+ttl_merged: graph.merged.ttl
+
+graph.merged.ttl: out/edges.merged.jsonl
+	python -m groundkg.export_ttl out/edges.merged.jsonl > graph.merged.ttl

@@ -89,7 +89,7 @@ lint:
 	@echo "Running Ruff (unused imports/vars)..."; \
 	ruff check groundkg tools training --select F401,F841 --fix || true; \
 	echo "\nRunning Vulture (unused defs)..."; \
-	vulture groundkg tools training --min-confidence 80 --exclude out,data,models,.venv,__pycache__ || true
+	vulture groundkg tools training vulture_whitelist.py --min-confidence 80 --exclude out,data,models,.venv,__pycache__ || true
 
 mine_patterns:
 	@echo "Top surface patterns from scored (high-conf):"; \

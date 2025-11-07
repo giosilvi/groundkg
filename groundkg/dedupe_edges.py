@@ -1,14 +1,17 @@
 # groundkg/dedupe_edges.py
-import sys, json
+import sys
+import json
+
 
 def key(e):
     ev = e.get("evidence", {})
     return (
-        e.get("subject","").strip().lower(),
-        e.get("predicate","").strip(),
-        e.get("object","").strip().lower(),
-        ev.get("quote","").strip()
+        e.get("subject", "").strip().lower(),
+        e.get("predicate", "").strip(),
+        e.get("object", "").strip().lower(),
+        ev.get("quote", "").strip(),
     )
+
 
 def main():
     in_path = sys.argv[1]
@@ -22,6 +25,6 @@ def main():
             seen.add(k)
             sys.stdout.write(json.dumps(e, ensure_ascii=False) + "\n")
 
+
 if __name__ == "__main__":
     main()
-
