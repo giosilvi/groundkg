@@ -1,129 +1,9 @@
 import json
 import sys
-import types
 
-try:  # pragma: no cover - exercised when numpy is available
-    import numpy as np
-except ModuleNotFoundError:  # pragma: no cover - provides lightweight stub for CI
-    fake_np = types.ModuleType("numpy")
-    import builtins
+import pytest
 
-    class FakeArray:
-        def __init__(self, data, dtype=None, shape=None):
-            self.data = data
-            self.dtype = dtype
-            if shape is not None:
-                self.shape = shape
-            elif isinstance(data, list):
-                if data and isinstance(data[0], list):
-                    self.shape = (len(data), len(data[0]))
-                else:
-                    self.shape = (len(data),)
-            else:
-                self.shape = ()
-
-        def reshape(self, *shape):
-            if len(shape) == 2:
-                rows, cols = shape
-                flat = self.flatten().data
-                if rows == 1 and cols == -1:
-                    return FakeArray([flat], self.dtype, (1, len(flat)))
-                if cols == -1 and rows > 0:
-                    cols = len(flat) // rows if rows else len(flat)
-                new_data = [flat[i * cols : (i + 1) * cols] for i in range(rows)]
-                return FakeArray(new_data, self.dtype, (rows, cols))
-            if len(shape) == 1 and shape[0] == -1:
-                flat = self.flatten().data
-                return FakeArray(flat, self.dtype, (len(flat),))
-            return FakeArray(self.data, self.dtype, self.shape)
-
-        def astype(self, dtype):
-            return FakeArray(self.data, dtype, self.shape)
-
-        def flatten(self):
-            if self.shape and len(self.shape) == 2:
-                flat = [item for row in self.data for item in row]
-            elif isinstance(self.data, list):
-                flat = list(self.data)
-            else:
-                flat = [self.data]
-            return FakeArray(flat, self.dtype, (len(flat),))
-
-        def __getitem__(self, idx):
-            val = self.data[idx]
-            if isinstance(val, list):
-                return FakeArray(val, self.dtype)
-            return val
-
-        def __len__(self):
-            return len(self.data)
-
-        def __setitem__(self, idx, value):
-            if isinstance(idx, tuple) and len(idx) == 2:
-                row, col = idx
-                self.data[row][col] = value
-            else:
-                self.data[idx] = value
-
-    def _array(data, dtype=None):
-        return FakeArray(data, dtype)
-
-    def _zeros(shape, dtype=float):
-        if isinstance(shape, tuple):
-            if len(shape) == 2:
-                rows, cols = shape
-                data = [[dtype(0) for _ in range(cols)] for _ in range(rows)]
-                return FakeArray(data, dtype, shape)
-            if len(shape) == 1:
-                data = [dtype(0)] * shape[0]
-                return FakeArray(data, dtype, (shape[0],))
-        data = [dtype(0)] * shape
-        return FakeArray(data, dtype, (shape,))
-
-    def _arange(n, dtype=float):
-        data = [dtype(i) for i in range(n)]
-        return FakeArray(data, dtype, (n,))
-
-    def _asarray(data, dtype=None):
-        if isinstance(data, FakeArray):
-            return data
-        if isinstance(data, list) and data and isinstance(data[0], list):
-            return FakeArray(data, dtype, (len(data), len(data[0])))
-        if isinstance(data, list):
-            return FakeArray(data, dtype, (len(data),))
-        return FakeArray([data], dtype, (1,))
-
-    def _argmax(array_like):
-        if isinstance(array_like, FakeArray):
-            data = array_like.data
-            if array_like.shape and len(array_like.shape) > 1:
-                data = data[0]
-        else:
-            data = array_like
-        max_idx = 0
-        max_val = float("-inf")
-        for idx, val in enumerate(data):
-            try:
-                numeric = float(val)
-            except (TypeError, ValueError):
-                numeric = 0.0
-            if numeric > max_val:
-                max_val = numeric
-                max_idx = idx
-        return max_idx
-
-    fake_np.array = _array
-    fake_np.zeros = _zeros
-    fake_np.arange = _arange
-    fake_np.asarray = _asarray
-    fake_np.argmax = _argmax
-    fake_np.float32 = float
-    fake_np.float64 = float
-
-    builtins.fake_np = fake_np
-
-    sys.modules["numpy"] = fake_np
-    import numpy as np  # type: ignore
+np = pytest.importorskip("numpy")
 
 from groundkg import event_extract, events_to_edges, re_score
 
@@ -173,9 +53,9 @@ def test_event_extract_main_generates_events(tmp_path, monkeypatch):
 
     lines = [json.loads(line) for line in events_out.read_text(encoding="utf-8").splitlines()]
 
-    types = {line["type"] for line in lines}
+    event_types = {line["type"] for line in lines}
     expected_types = {"Acquisition", "Funding", "Launch", "Appointment", "Founding"}
-    assert expected_types.issubset(types)
+    assert expected_types.issubset(event_types)
 
     acq = next(line for line in lines if line["type"] == "Acquisition")
     assert acq["roles"].get("acquirer") == "MegaCorp"
@@ -288,7 +168,7 @@ def test_re_score_main_batches(tmp_path, monkeypatch, capsys):
             self.calls += 1
             probs = np.zeros((1, 2), dtype=np.float32)
             probs[0, self.calls % 2] = 0.8
-            return [np.array(["label"], dtype=object), probs]
+            return [np.array(["label"]), probs]
 
     dummy_embedder = DummyEmbedder()
     monkeypatch.setattr(re_score, "get_embedder", lambda: dummy_embedder)
