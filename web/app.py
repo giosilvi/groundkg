@@ -121,22 +121,33 @@ def run_command(target):
 @app.route('/api/status/<target>')
 def command_status(target):
     """Get status of a running command"""
-    if target in running_commands:
-        process = running_commands[target]
-        if process.poll() is None:
-            # Still running
-            return jsonify({'status': 'running', 'pid': process.pid})
-        else:
-            # Finished
-            stdout, stderr = process.communicate()
-            del running_commands[target]
-            return jsonify({
-                'status': 'completed' if process.returncode == 0 else 'failed',
-                'returncode': process.returncode,
-                'stdout': stdout,
-                'stderr': stderr
-            })
-    return jsonify({'status': 'not_found'})
+    if target not in running_commands:
+        return jsonify({'status': 'not_found'})
+
+    # Store process reference to avoid race conditions
+    process = running_commands[target]
+    poll_result = process.poll()
+
+    if poll_result is None:
+        # Still running
+        return jsonify({'status': 'running', 'pid': process.pid})
+
+    # Finished - clean up and return results
+    try:
+        # Remove from running_commands first to prevent duplicate processing
+        running_commands.pop(target, None)
+        stdout, stderr = process.communicate(timeout=1)
+        return jsonify({
+            'status': 'completed' if process.returncode == 0 else 'failed',
+            'returncode': process.returncode,
+            'stdout': stdout,
+            'stderr': stderr
+        })
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'error': f'Failed to get process output: {str(e)}'
+        }), 500
 
 
 @app.route('/api/files')
