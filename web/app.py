@@ -63,11 +63,15 @@ def get_file_info(path):
     if not full_path.exists():
         return None
     stat = full_path.stat()
+    lines = 0
+    if full_path.is_file():
+        with open(full_path, 'rb') as f:
+            lines = sum(1 for _ in f)
     return {
         'exists': True,
         'size': stat.st_size,
         'modified': stat.st_mtime,
-        'lines': sum(1 for _ in open(full_path, 'rb')) if full_path.is_file() else 0
+        'lines': lines
     }
 
 
@@ -188,10 +192,12 @@ def get_file(file_key):
     try:
         with open(path, 'r', encoding='utf-8') as f:
             content = ''.join(f.readlines()[:lines])
+        with open(path, 'rb') as f:
+            total_lines = sum(1 for _ in f)
         return jsonify({
             'path': files[file_key],
             'content': content,
-            'total_lines': sum(1 for _ in open(path, 'rb'))
+            'total_lines': total_lines
         })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
