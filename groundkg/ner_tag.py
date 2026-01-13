@@ -48,7 +48,8 @@ def main():
             nlp.enable_pipe("ner")
         except Exception:
             pass
-    text = open(in_path, "r", encoding="utf-8").read()
+    with open(in_path, "r", encoding="utf-8") as f:
+        text = f.read()
     doc = nlp(text) # main call to the pipeline
 
     for sent in doc.sents:
