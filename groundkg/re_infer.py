@@ -93,8 +93,10 @@ def main():
     if not os.path.exists(onnx_path):
         sys.exit(0)
 
-    thresholds = json.load(open(thresh_path, "r", encoding="utf-8"))
-    classes = json.load(open("models/classes.json", "r", encoding="utf-8"))
+    with open(thresh_path, "r", encoding="utf-8") as f:
+        thresholds = json.load(f)
+    with open("models/classes.json", "r", encoding="utf-8") as f:
+        classes = json.load(f)
     sess = ort.InferenceSession(onnx_path, providers=["CPUExecutionProvider"])
     inp_name = sess.get_inputs()[0].name
 

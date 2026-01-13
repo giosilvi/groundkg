@@ -2,7 +2,8 @@ import sys, json
 
 def main():
     scored_path, thr_path = sys.argv[1:3]
-    thresholds = json.load(open(thr_path, 'r', encoding='utf-8'))
+    with open(thr_path, 'r', encoding='utf-8') as f:
+        thresholds = json.load(f)
     with open(scored_path, 'r', encoding='utf-8') as f:
         for line in f:
             r = json.loads(line)

@@ -28,7 +28,8 @@ def main():
     thresholds = {}
     if os.path.exists(thr_path):
         try:
-            thresholds = json.load(open(thr_path,'r',encoding='utf-8'))
+            with open(thr_path, 'r', encoding='utf-8') as f:
+                thresholds = json.load(f)
         except Exception:
             thresholds = {}
 

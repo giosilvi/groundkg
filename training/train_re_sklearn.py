@@ -11,7 +11,9 @@ from sklearn.metrics import precision_recall_curve
 from skl2onnx import convert_sklearn
 from skl2onnx.common.data_types import StringTensorType
 
-def load_jsonl(p): return [json.loads(l) for l in open(p, "r", encoding="utf-8") if l.strip()]
+def load_jsonl(p):
+    with open(p, "r", encoding="utf-8") as f:
+        return [json.loads(l) for l in f if l.strip()]
 
 def load_data(train_p, dev_p):
     tr = load_jsonl(train_p); dv = load_jsonl(dev_p)
