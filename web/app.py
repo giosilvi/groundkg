@@ -63,11 +63,15 @@ def get_file_info(path):
     if not full_path.exists():
         return None
     stat = full_path.stat()
+    lines = 0
+    if full_path.is_file():
+        with open(full_path, 'rb') as f:
+            lines = sum(1 for _ in f)
     return {
         'exists': True,
         'size': stat.st_size,
         'modified': stat.st_mtime,
-        'lines': sum(1 for _ in open(full_path, 'rb')) if full_path.is_file() else 0
+        'lines': lines
     }
 
 
@@ -117,22 +121,33 @@ def run_command(target):
 @app.route('/api/status/<target>')
 def command_status(target):
     """Get status of a running command"""
-    if target in running_commands:
-        process = running_commands[target]
-        if process.poll() is None:
-            # Still running
-            return jsonify({'status': 'running', 'pid': process.pid})
-        else:
-            # Finished
-            stdout, stderr = process.communicate()
-            del running_commands[target]
-            return jsonify({
-                'status': 'completed' if process.returncode == 0 else 'failed',
-                'returncode': process.returncode,
-                'stdout': stdout,
-                'stderr': stderr
-            })
-    return jsonify({'status': 'not_found'})
+    if target not in running_commands:
+        return jsonify({'status': 'not_found'})
+
+    # Store process reference to avoid race conditions
+    process = running_commands[target]
+    poll_result = process.poll()
+
+    if poll_result is None:
+        # Still running
+        return jsonify({'status': 'running', 'pid': process.pid})
+
+    # Finished - clean up and return results
+    try:
+        # Remove from running_commands first to prevent duplicate processing
+        running_commands.pop(target, None)
+        stdout, stderr = process.communicate(timeout=1)
+        return jsonify({
+            'status': 'completed' if process.returncode == 0 else 'failed',
+            'returncode': process.returncode,
+            'stdout': stdout,
+            'stderr': stderr
+        })
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'error': f'Failed to get process output: {str(e)}'
+        }), 500
 
 
 @app.route('/api/files')
@@ -188,10 +203,12 @@ def get_file(file_key):
     try:
         with open(path, 'r', encoding='utf-8') as f:
             content = ''.join(f.readlines()[:lines])
+        with open(path, 'rb') as f:
+            total_lines = sum(1 for _ in f)
         return jsonify({
             'path': files[file_key],
             'content': content,
-            'total_lines': sum(1 for _ in open(path, 'rb'))
+            'total_lines': total_lines
         })
     except Exception as e:
         return jsonify({'error': str(e)}), 500

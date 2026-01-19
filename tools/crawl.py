@@ -79,12 +79,14 @@ def fetch_and_snapshot(doc_id: str, url: str):
 def html_to_text(data: bytes, url: str):
     html = data.decode("utf-8", errors="ignore")
     title = ""
+    soup = None
     try:
         soup = BeautifulSoup(html, "html.parser")
         if soup.title and soup.title.string: title = soup.title.string.strip()
-    except Exception: pass
+    except Exception:
+        pass
     extracted = trafilatura.extract(html, include_tables=True, url=url) or ""
-    text = extracted.strip() if extracted else (soup.get_text(" ", strip=True) if 'soup' in locals() else "")
+    text = extracted.strip() if extracted else (soup.get_text(" ", strip=True) if soup is not None else "")
     return title or url, text
 
 def pdf_to_text(data: bytes)->str:

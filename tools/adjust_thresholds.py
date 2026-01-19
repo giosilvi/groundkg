@@ -44,7 +44,8 @@ def adjust_thresholds(thresholds_path, scored_path, min_edges=10, min_threshold=
     """
     # Load current thresholds
     if os.path.exists(thresholds_path):
-        thresholds = json.load(open(thresholds_path, 'r', encoding='utf-8'))
+        with open(thresholds_path, 'r', encoding='utf-8') as f:
+            thresholds = json.load(f)
     else:
         thresholds = {}
     

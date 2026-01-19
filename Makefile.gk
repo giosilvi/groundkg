@@ -143,8 +143,13 @@ bootstrap: ner cand bootstrap_seed
 # Build a simple JSONL manifest from corpus texts for the events extractor
 out/manifest.jsonl: $(CORPUS_DIR)/*.txt
 	@mkdir -p $(OUT)
-	@python -c "import glob,json,os,io; paths=glob.glob('data/corpus/*.txt'); w=io.open('out/manifest.jsonl','w',encoding='utf-8');\
- [w.write(json.dumps({'doc_id':os.path.splitext(os.path.basename(p))[0],'text':io.open(p,'r',encoding='utf-8').read()}, ensure_ascii=False)+'\\n') for p in paths]; w.close(); print('Wrote out/manifest.jsonl with %d docs' % len(paths))"
+	@python -c "import glob,json,os,io; \
+def read_file(p): \
+	with io.open(p,'r',encoding='utf-8') as f: return f.read(); \
+paths=glob.glob('data/corpus/*.txt'); \
+with io.open('out/manifest.jsonl','w',encoding='utf-8') as w: \
+	[w.write(json.dumps({'doc_id':os.path.splitext(os.path.basename(p))[0],'text':read_file(p)}, ensure_ascii=False)+'\\n') for p in paths]; \
+	print('Wrote out/manifest.jsonl with %d docs' % len(paths))"
 
 .PHONY: events event_edges ttl_events merge_edges ttl_merged
 

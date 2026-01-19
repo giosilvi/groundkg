@@ -2,6 +2,7 @@
 import sys
 import json
 import os
+import threading
 import onnxruntime as ort
 import numpy as np
 from sentence_transformers import SentenceTransformer
@@ -12,13 +13,17 @@ EMBEDDING_DIM = 384
 
 # Global cache for sentence transformer model
 _embedder_cache = None
+_embedder_lock = threading.Lock()
 
 
 def get_embedder():
-    """Get or create sentence transformer model (cached)."""
+    """Get or create sentence transformer model (cached, thread-safe)."""
     global _embedder_cache
     if _embedder_cache is None:
-        _embedder_cache = SentenceTransformer(MODEL_NAME)
+        with _embedder_lock:
+            # Double-check inside lock to prevent race condition
+            if _embedder_cache is None:
+                _embedder_cache = SentenceTransformer(MODEL_NAME)
     return _embedder_cache
 
 
@@ -50,7 +55,8 @@ def main():
     embedder = get_embedder()
     
     # Load ONNX model and classes
-    classes = json.load(open(classes_path, "r", encoding="utf-8"))
+    with open(classes_path, "r", encoding="utf-8") as f:
+        classes = json.load(f)
     sess = ort.InferenceSession(onnx_path, providers=["CPUExecutionProvider"])
     inp_name = sess.get_inputs()[0].name
     
